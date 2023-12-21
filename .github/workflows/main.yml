@@ -5,6 +5,11 @@ on:
     branches:
       - main
 
+env:
+  AKS_RESOURCE_GROUP: aks-demo-alb-rg
+  AKS_CLUSTER_NAME: demo
+  NAMESPACE: demo2112
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -29,4 +34,15 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Push Docker image to GitHub Packages
-        run: docker tag my-springboot-app ghcr.io/${{ github.repository }}/my-springboot-app:latest && docker push ghcr.io/${{ github.repository }}/my-springboot-app:latest
+        run: docker tag my-springboot-app ghcr.io/${{ github.repository }}/my-springboot-app:${{ github.sha }} && docker push ghcr.io/${{ github.repository }}/my-springboot-app:${{ github.sha }}
+
+      -  name: Login in Azure
+         uses: azure/login@v1
+         with:
+           creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Get AKS credentials
+        run: az aks get-credentials --resource-group $AKS_RESOURCE_GROUP --name $AKS_CLUSTER_NAME
+
+      - name: Deploy to AKS
+        run: sed -i "s/\$IMAGE_TAG/${{ github.sha }}/" k8s/application.yaml && kubectl apply -f  k8s/application.yaml -n $NAMESPACE
